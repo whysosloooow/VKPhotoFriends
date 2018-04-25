@@ -10,6 +10,7 @@ import UIKit
 import VK_ios_sdk
 import SwiftyJSON
 import MBProgressHUD
+import SDWebImage
 
 class VKPhotosTableViewController: UITableViewController {
     var progressHUD: MBProgressHUD?
@@ -20,15 +21,16 @@ class VKPhotosTableViewController: UITableViewController {
         progressHUD = MBProgressHUD.showAdded(to: self.view, animated: true)
         progressHUD?.mode = .determinate
         progressHUD?.label.text = "Загружаем последние картинки"
-        let getNewPhotos = VKRequest.init(method: "newsfeed.get", parameters: ["filters": "photo, wall_photo", "max_photos": "1", "source_ids": "friends", "fields": "id, first_name, last_name", "count": "10"])
+        let getNewPhotos = VKRequest.init(method: "newsfeed.get", parameters: ["filters": "photo, wall_photo", "max_photos": "1", "source_ids": "friends", "fields": "id, first_name, last_name, photo_50", "count": "100"])
         getNewPhotos?.execute(resultBlock: { (response) in
 //            print(response ?? "wow")
             self.createPhotosArray(response: response!)
         }, errorBlock: { (error) in
             print("yay")
         })
-        
     }
+    
+    
 
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
@@ -55,57 +57,15 @@ class VKPhotosTableViewController: UITableViewController {
             cell.nameLabel.text = " "
         } else {
             cell.nameLabel.text = photoArrays![indexPath.row]["name"] as! String
+            cell.avatarImage.sd_setImage(with: URL(string: photoArrays![indexPath.row]["avatar"] as! String), completed: nil)
+            cell.photoImage.contentMode = .scaleAspectFit
+            cell.photoImage.sd_setImage(with: URL(string: photoArrays![indexPath.row]["photo_url"] as! String), completed: nil)
+            cell.dateLabel.text = photoArrays![indexPath.row]["date"] as! String
         }
-        // Configure the cell...
-
         return cell
     }
 
-    /*
-    // Override to support conditional editing of the table view.
-    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the specified item to be editable.
-        return true
-    }
-    */
-
-    /*
-    // Override to support editing the table view.
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            // Delete the row from the data source
-            tableView.deleteRows(at: [indexPath], with: .fade)
-        } else if editingStyle == .insert {
-            // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-        }    
-    }
-    */
-
-    /*
-    // Override to support rearranging the table view.
-    override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
-
-    }
-    */
-
-    /*
-    // Override to support conditional rearranging of the table view.
-    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the item to be re-orderable.
-        return true
-    }
-    */
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
-    }
-    */
-
+    
     func createPhotosArray(response: VKResponse<VKApiObject>) {
         if (response != nil) {
             photoArrays = []
@@ -113,12 +73,21 @@ class VKPhotosTableViewController: UITableViewController {
             let profiles = jsonFromResponse["profiles"].arrayValue.map({$0})
             let pictures = jsonFromResponse["items"].arrayValue.map({$0["photos"]["items"][0]["photo_604"]})
             let picturesId = jsonFromResponse["items"].arrayValue.map({$0["photos"]["items"][0]["owner_id"]})
+            let date = jsonFromResponse["items"].arrayValue.map({$0["photos"]["items"][0]["date"]})
             
             for index in 0..<pictures.count {
                 for profile in profiles {
                     if (profile["id"] == picturesId[index]) {
+                        let date = Date(timeIntervalSince1970: date[index].doubleValue)
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.timeZone = TimeZone(abbreviation: "GMT") //Set timezone that you want
+                        dateFormatter.locale = NSLocale.current
+                        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm" //Specify your format that you want
+                        let strDate = dateFormatter.string(from: date)
                         photoArrays?.append(["name": profile["first_name"].stringValue + " " + profile["last_name"].stringValue as AnyObject,
-                                             "photo_url":pictures[index].stringValue as AnyObject])
+                                             "photo_url":pictures[index].stringValue as AnyObject,
+                                            "date": strDate as AnyObject,
+                                            "avatar": profile["photo_50"].stringValue as AnyObject])
                     }
                 }
             }
